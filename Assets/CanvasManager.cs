@@ -47,7 +47,18 @@ public class CanvasManager : MonoBehaviour
 
     void OnGenerate(Button button)
     {
-        mazeGenerator.generateMaze(Convert.ToUInt32(xSizeInput.text), Convert.ToUInt32(ySizeInput.text), Convert.ToUInt32(widthInput.text), Convert.ToUInt32(heightInput.text));
+        uint xSize = Convert.ToUInt32(xSizeInput.text);
+        uint ySize = Convert.ToUInt32(ySizeInput.text);
+        uint width = Convert.ToUInt32(widthInput.text);
+        uint height = Convert.ToUInt32(heightInput.text);
+
+        if (xSize > 250 || ySize > 250 || width < 10 || height < 10)
+        {
+            Debug.Log("Please input valid data");
+            return;
+        }
+
+        mazeGenerator.generateMaze(xSize, ySize, width, height);
         GetComponent<Canvas>().enabled = false;
     }
 
