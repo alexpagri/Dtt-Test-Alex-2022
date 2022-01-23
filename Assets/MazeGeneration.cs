@@ -7,20 +7,14 @@ public class MazeGeneration : MonoBehaviour
     // the wall prefab
     public GameObject wallPrefab;
 
-    // cells per inch to generate
-    public float cellsPerInch = 2f;
+    // wall thickness (pixels)
+    private float wallSize = 1f;
 
-    // percentage of the cell size
-    public float wallSize = 0.1f;
-
-    // used screen variables
-    private (int width, int height, float dpi, float aspectRatio) screenVariables;
-
-    // screen size divided by dpi
-    private (float width, float height) screenAwareSize;
-
-    // game size in cells
+    // game size in cells (X, Y)
     private (uint width, uint height) gameSize;
+
+    // scalers for width and height
+    private (float scaleX, float scaleY) scalers;
 
     // screen offset (from float truncation error)
     private (float offsetX, float offsetY) screenOffset;
@@ -28,15 +22,37 @@ public class MazeGeneration : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        screenVariables = (Screen.width, Screen.height, Screen.dpi, Screen.width / Screen.height);
+        
+    }
 
-        screenAwareSize = (screenVariables.width / screenVariables.dpi, screenVariables.height / screenVariables.dpi);
+    void removeMaze()
+    {
+        foreach (var wall in GameObject.FindGameObjectsWithTag("Wall"))
+        {
+            Destroy(wall);
+        }
+    }
 
-        gameSize = ((uint)(screenAwareSize.width * cellsPerInch), (uint)(screenAwareSize.height * cellsPerInch));
+    public void generateMaze(uint gameWidth, uint gameHeight, uint chosenWidth, uint chosenHeight)
+    {
+        // save sizes
+        gameSize = (gameWidth, gameHeight);
 
-        screenOffset = (screenVariables.width - gameToScreenTransform(gameSize.width), screenVariables.height - gameToScreenTransform(gameSize.height));
+        scalers.scaleX = chosenWidth / (float)gameWidth;
+        scalers.scaleY = chosenHeight / (float)gameHeight;
 
-        // frame generation
+        // set the game scaler to fit the maze on screen
+        //scaler = Mathf.Min(Screen.width / (float)gameWidth, Screen.height / (float)gameHeight);
+
+        // place maze in the center of the screen
+        screenOffset = (Screen.width - scalers.scaleX * gameWidth, Screen.height - scalers.scaleY * gameHeight);
+
+        // 0.5f means half of the cell is taken by the wall
+        wallSize = Mathf.Min(scalers.scaleX, scalers.scaleY) * 0.5f;
+
+        // delete old maze
+        removeMaze();
+
         for (uint i = 0; i < gameSize.width; i++)
         {
             placeWall(i, 0, false);
@@ -49,8 +65,6 @@ public class MazeGeneration : MonoBehaviour
         }
 
         wallGeneration(0, 0, gameSize.width, gameSize.height);
-
-        Debug.Log(gameSize);
     }
 
     // generate maze in a recursive manner, using cuts
@@ -62,8 +76,8 @@ public class MazeGeneration : MonoBehaviour
         if (xSize > 1 && ySize > 1)
         {
             // could use random here instead, but this generates more uniform (nicer) samples
-            uint xSplit = (xPos + xEnd + 1) / 2;
-            uint ySplit = (yPos + yEnd + 1) / 2;
+            uint xSplit = (xPos + xEnd + 1) / 2; // (uint)Random.Range(xPos + 1, xEnd);
+            uint ySplit = (yPos + yEnd + 1) / 2; // (uint)Random.Range(yPos + 1, yEnd);
 
             uint totalSize = xSize + ySize;
 
@@ -128,31 +142,25 @@ public class MazeGeneration : MonoBehaviour
         // instantiate object
         GameObject wall = Instantiate(wallPrefab);
 
+        // adjust wall thickness to our variable and to the width and height
+        wall.transform.GetChild(0).localScale = new Vector3((vertical ? scalers.scaleY : scalers.scaleX) + wallSize, wallSize, 1f);
+        wall.transform.GetChild(0).localPosition = new Vector3((vertical ? scalers.scaleY : scalers.scaleX) / 2, 0f, 0f);
+
         // transform points to world, including our modifications
-        Vector3 worldPoints = Camera.main.ScreenToWorldPoint(new Vector3(gameToScreenTransform(x) + screenOffset.offsetX / 2, gameToScreenTransform(y) + screenOffset.offsetY / 2, 0));
+        Vector3 worldPoints = Camera.main.ScreenToWorldPoint(new Vector3(x * scalers.scaleX + screenOffset.offsetX / 2, y * scalers.scaleY + screenOffset.offsetY / 2, 0));
         
         // same for scale
         Vector3 worldScale = Camera.main.ScreenToWorldPoint(Vector3.one) - Camera.main.ScreenToWorldPoint(Vector3.zero);
 
         wall.transform.position = new Vector3(worldPoints.x, worldPoints.y, wall.transform.position.z);
 
-        wall.transform.localScale = gameToScreenTransform(worldScale);
+        wall.transform.localScale = worldScale;
 
         // rotate wall if vertical (y wall)
         if (vertical)
         {
             wall.transform.rotation = Quaternion.Euler(0, 0, 90);
         }
-    }
-
-    float gameToScreenTransform(float input)
-    {
-        return input * screenVariables.dpi / cellsPerInch;
-    }
-
-    Vector3 gameToScreenTransform(Vector3 input)
-    {
-        return input * screenVariables.dpi / cellsPerInch;
     }
 
     // Update is called once per frame
